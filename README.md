@@ -49,7 +49,8 @@
 # Auto grant Perrmission for app : Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
 
 + ExternalSourcesDetails.java :
-    -  mUserManager = UserManager.get(context);
+    ```markdown
+       mUserManager = UserManager.get(context);
        if (mPackageName != null && "com.maxcloud.app".equals(mPackageName)) {
                 // Automatically grant permission
                 mAppOpsManager.setMode(AppOpsManager.OP_REQUEST_INSTALL_PACKAGES,
