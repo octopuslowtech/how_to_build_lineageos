@@ -1,6 +1,8 @@
 # How to build ROM LineageOS 20 (Android 13) for S7, S7E, S8, S8 PLUS, NOTE 8
 
-- repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs
+```markdown
+    repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs
+
 
 - Copy local_manifests to .repo/
 
