@@ -86,5 +86,15 @@
         }
 
 
+#### **2.4. Cách sử dụng**
+- Cung cấp ví dụ cụ thể về cách sử dụng dự án.
+- Bao gồm đoạn code, lệnh, hoặc ảnh chụp màn hình nếu cần.
 
+**Ví dụ:**
+```markdown
+## Sử dụng
+Để gửi một thông báo đến Slack, chạy lệnh sau:
+
+```bash
+node src/index.js --slack --message "Hello, team!"
 
