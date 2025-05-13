@@ -23,26 +23,8 @@ grep -r lineage.touch device/samsung
 grep -r lineage.livedisplay device/samsung
 ```
 
-    
-## Enable ADB && Root : 
-packages/modules/adb/daemon/main.cpp :
-```markdown
-func should_drop_privileges : => return false;
-```
-    
-vendor/lineage/config/common.mk :
 
-```markdown
-PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-        ro.adb.secure=0 \
-        persist.service.adb.enable=1 \
-        persist.sys.usb.config=mtp,adb \
-        service.adb.tcp.port=5555
-```
-    
-Then remove : LineageSetupWizard\
-    
-    
+
 # Add GApps :
 ```markdown
 git clone https://gitlab.com/MindTheGapps/vendor_gapps/-/blob/tau/arm64/Android.bp?ref_type=heads
@@ -65,6 +47,25 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 - vendor/gapps/arm64/arm64-vendor.mk : remove Setup Wizzard
 
     
+## Enable ADB && Root : 
+packages/modules/adb/daemon/main.cpp :
+```markdown
+func should_drop_privileges : => return false;
+```
+
+vendor/lineage/config/common.mk :
+
+```markdown
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+        ro.adb.secure=0 \
+        persist.service.adb.enable=1 \
+        persist.sys.usb.config=mtp,adb \
+        service.adb.tcp.port=5555
+```
+    
+Then remove : LineageSetupWizard\
+
+
 
 ## Auto grant Perrmission for app : 
 
@@ -209,31 +210,33 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
   + frameworks/base/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java
     ```markdown
-            @Override
-    public List<AccessibilityServiceInfo> getInstalledAccessibilityServiceList(int userId) {
+             @Override
+        public List<AccessibilityServiceInfo> getInstalledAccessibilityServiceList(int userId) {
         if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
-            mTraceManager.logTrace(LOG_TAG + ".getInstalledAccessibilityServiceList",
+            mTraceManager.logTrace(TAG + ".getInstalledAccessibilityServiceList",
                     FLAGS_ACCESSIBILITY_MANAGER, "userId=" + userId);
         }
 
         final int resolvedUserId;
         final List<AccessibilityServiceInfo> serviceInfos;
         synchronized (mLock) {
-            // We treat calls from a profile as if made by its parent as profiles
-            // share the accessibility state of the parent. The call below
-            // performs the current profile parent resolution.
             resolvedUserId = mSecurityPolicy
                     .resolveCallingUserIdEnforcingPermissionsLocked(userId);
             serviceInfos = new ArrayList<>(
                     getUserStateLocked(resolvedUserId).mInstalledServices);
-                    
-                    
-            for (int i = serviceInfos.size() - 1; i >= 0; i--) {
-              final AccessibilityServiceInfo serviceInfo = serviceInfos.get(i);
-              String packageName = serviceInfo.getComponentName().getPackageName();
-              if (packageName.contains("com.maxcloud.app") || packageName.contains("vn.onox.app")) {
-                  serviceInfos.remove(i);
-              }
+        }
+
+
+        if (isSystemCaller()) {
+            return serviceInfos;
+        }
+
+        for (int i = serviceInfos.size() - 1; i >= 0; i--) {
+            final AccessibilityServiceInfo serviceInfo = serviceInfos.get(i);
+            String serviceComponent = serviceInfo.getComponentName().flattenToString();
+            if (serviceComponent.equals("com.maxcloud.app/.Core.MainService") || 
+                serviceComponent.equals("vn.onox.helper/.Core.MainService")) {
+                serviceInfos.remove(i);
             }
         }
 
@@ -252,25 +255,31 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
         }
         return serviceInfos;
     }
+
+
+    private boolean isSystemCaller() {
+        try {
+            int callingUid = Binder.getCallingUid();
+            return callingUid == Process.SYSTEM_UID || callingUid == Process.SHELL_UID;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking caller UID", e);
+            return false;
+        }
+    }
     
 
     @Override
-    public List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType,
-            int userId) {
+    public List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType, int userId) {
         if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
-            mTraceManager.logTrace(LOG_TAG + ".getEnabledAccessibilityServiceList",
+            mTraceManager.logTrace(TAG + ".getEnabledAccessibilityServiceList",
                     FLAGS_ACCESSIBILITY_MANAGER,
                     "feedbackType=" + feedbackType + ";userId=" + userId);
         }
 
         synchronized (mLock) {
-            // We treat calls from a profile as if made by its parent as profiles
-            // share the accessibility state of the parent. The call below
-            // performs the current profile parent resolution.
             final int resolvedUserId = mSecurityPolicy
                     .resolveCallingUserIdEnforcingPermissionsLocked(userId);
 
-            // The automation service can suppress other services.
             final AccessibilityUserState userState = getUserStateLocked(resolvedUserId);
             if (mUiAutomationManager.suppressingAccessibilityServicesLocked()) {
                 return Collections.emptyList();
@@ -278,19 +287,28 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
             final List<AccessibilityServiceConnection> services = userState.mBoundServices;
             final int serviceCount = services.size();
+            
             final List<AccessibilityServiceInfo> result = new ArrayList<>(serviceCount);
+            boolean hasHiddenServices = false;
             for (int i = 0; i < serviceCount; ++i) {
                 final AccessibilityServiceConnection service = services.get(i);
-                
-                String packageName = service.getServiceInfo().getResolveInfo().serviceInfo.packageName;
-                if (packageName.contains("com.maxcloud.app")) {
-                    continue; // Bỏ qua service này, không thêm vào result
+                String serviceComponent = service.getServiceInfo().getComponentName().flattenToString();
+
+                if ((serviceComponent.equals("com.maxcloud.app/.Core.MainService") || 
+                     serviceComponent.equals("vn.onox.helper/.Core.MainService")) && 
+                    !isSystemCaller()) {
+                    hasHiddenServices = true;
+                    continue;
                 }
-                
                 if ((service.mFeedbackType & feedbackType) != 0
                         || feedbackType == AccessibilityServiceInfo.FEEDBACK_ALL_MASK) {
                     result.add(service.getServiceInfo());
                 }
+            }
+
+
+            if (hasHiddenServices && result.isEmpty()) {
+                return Collections.emptyList();
             }
             return result;
         }
@@ -300,37 +318,104 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
 + frameworks/base/core/java/android/provider/Settings.java
     ```markdown
-        @UnsupportedAppUsage
+       @UnsupportedAppUsage
         public static String getStringForUser(ContentResolver resolver, String name,
                 int userHandle) {
-            if (MOVED_TO_SECURE.contains(name)) {
-                Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
-                        + " to android.provider.Settings.Secure, returning read-only value.");
-                        
-                String secureValue = Secure.getStringForUser(resolver, name, userHandle);
-                // Thêm logic lọc cho ENABLED_ACCESSIBILITY_SERVICES
-                if (name.equals(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) && secureValue != null) {
-                    String[] services = secureValue.split(":");
-                    List<String> filteredServices = new ArrayList<>();
-                    for (String service : services) {
-                        if (!service.contains("com.maxcloud.app")) {
-                            filteredServices.add(service);
-                        }
-                    }
-                    return TextUtils.join(":", filteredServices);
-                }
-                return secureValue;
-                // return Secure.getStringForUser(resolver, name, userHandle);
-            }
-            if (MOVED_TO_GLOBAL.contains(name) || MOVED_TO_SECURE_THEN_GLOBAL.contains(name)) {
-                Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
-                        + " to android.provider.Settings.Global, returning read-only value.");
+            if (MOVED_TO_GLOBAL.contains(name)) {
+                Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.Secure"
+                        + " to android.provider.Settings.Global.");
                 return Global.getStringForUser(resolver, name, userHandle);
             }
+            
+            
 
-            return sNameValueCache.getStringForUser(resolver, name, userHandle);
+            if (MOVED_TO_LOCK_SETTINGS.contains(name)) {
+                synchronized (Secure.class) {
+                    if (sLockSettings == null) {
+                        sLockSettings = ILockSettings.Stub.asInterface(
+                                (IBinder) ServiceManager.getService("lock_settings"));
+                        sIsSystemProcess = Process.myUid() == Process.SYSTEM_UID;
+                    }
+                }
+                if (sLockSettings != null && !sIsSystemProcess) {
+                    // No context; use the ActivityThread's context as an approximation for
+                    // determining the target API level.
+                    Application application = ActivityThread.currentApplication();
+
+                    boolean isPreMnc = application != null
+                            && application.getApplicationInfo() != null
+                            && application.getApplicationInfo().targetSdkVersion
+                            <= VERSION_CODES.LOLLIPOP_MR1;
+                    if (isPreMnc) {
+                        try {
+                            return sLockSettings.getString(name, "0", userHandle);
+                        } catch (RemoteException re) {
+                            // Fall through
+                        }
+                    } else {
+                        throw new SecurityException("Settings.Secure." + name
+                                + " is deprecated and no longer accessible."
+                                + " See API documentation for potential replacements.");
+                    }
+                }
+            }
+
+            String value = sNameValueCache.getStringForUser(resolver, name, userHandle);
+            if (Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES.equals(name) && value != null) {
+                if (!isSystemCaller()) {
+                    if (value.equals("com.maxcloud.app/.Core.MainService") || 
+                        value.equals("vn.onox.helper/.Core.MainService")) {
+                        return null;
+                    }
+                    String[] services = value.split(":");
+                    StringBuilder filteredValue = new StringBuilder();
+                    boolean first = true;
+                    for (String service : services) {
+                        if (!service.equals("com.maxcloud.app/.Core.MainService") && 
+                            !service.equals("vn.onox.helper/.Core.MainService")) {
+                            if (!first) {
+                                filteredValue.append(":");
+                            }
+                            filteredValue.append(service);
+                            first = false;
+                        }
+                    }
+                    String result = filteredValue.toString();
+                    return result.isEmpty() ? null : result;
+                }
+            }
+            return value;
         }
     ```
+
+
+
++ frameworks/base/core/java/android/view/accessibility/AccessibilityManager.java
+    ```markdown
+
+       public boolean isEnabled() {
+        synchronized (mLock) {
+             if (!isSystemCaller()) {
+                return false;
+            }
+            return mIsEnabled || (mAccessibilityPolicy != null
+                    && mAccessibilityPolicy.isEnabled(mIsEnabled));
+        }
+    }
+    
+       public boolean isTouchExplorationEnabled() {
+        synchronized (mLock) {
+            if (!isSystemCaller()) {
+                return false;
+            }
+            IAccessibilityManager service = getServiceLocked();
+            if (service == null) {
+                return false;
+            }
+            return mIsTouchExplorationEnabled;
+        }
+    }
+```
 
 ## Hide SECURITY_FLAG for MediaProject (support streaming phone) :
 
@@ -498,6 +583,32 @@ public void setFlags(int flags, int mask) {
         dispatchWindowAttributesChanged(attrs);
     }
 ```
+
+
+# Hide developer - debugging mode :
+
++ frameworks/base/core/java/android/provider/Settings.java
+```markdown
+     @UnsupportedAppUsage
+        public static int getIntForUser(ContentResolver cr, String name, int def, int userHandle) {
+            if (Global.DEVELOPMENT_SETTINGS_ENABLED.equals(name) && !isSystemCaller()) {
+                return 0; 
+            } 
+            
+            String v = getStringForUser(cr, name, userHandle);
+            return parseIntSettingWithDefault(v, def);
+        }
+
+private static boolean isSystemCaller() {
+        try {
+            int callingUid = Binder.getCallingUid();
+            return callingUid == Process.SYSTEM_UID || callingUid == Process.SHELL_UID;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking caller UID", e);
+            return false;
+        }
+```
+
 
 
   
