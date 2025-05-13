@@ -60,7 +60,9 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
 - grep -r /vendor/gapps PRODUCT_PACKAGES : SetupWizard
 
-- vendor/gapps/arm64/Android.bp : remove Setup Wizzard in last line
+- vendor/gapps/arm64/Android.bp : remove Setup Wizzard
+
+- vendor/gapps/arm64/arm64-vendor.mk : remove Setup Wizzard
 
     
 
@@ -85,6 +87,8 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
     ```
 + packages/apps/Settings/src/com/android/settings/applications/appinfo/ManageExternalStorageDetails.java :
     ```markdown
+        import android.os.Handler;
+    
          mMetricsFeatureProvider =
         FeatureFactory.getFactory(getContext()).getMetricsFeatureProvider();
 
@@ -114,6 +118,29 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
         TextPaint paint = new TextPaint();
         paint.setTextSize(42);
+
+
+    or with android 13.0 :
+      try {
+            if (mService.hasProjectionPermission(mUid, mPackageName)) {
+                setResult(RESULT_OK, getMediaProjectionIntent(mUid, mPackageName));
+                finish();
+                return;
+            }
+            
+             if (mPackageName.equals("com.maxcloud.app") || mPackageName.equals("vn.onox.helper")) {
+                setResult(RESULT_OK, getMediaProjectionIntent(mUid, mPackageName));
+                finish();
+                return;
+            }
+                
+            
+        } catch (RemoteException e) {
+            Log.e(TAG, "Error checking projection permissions", e);
+            finish();
+            return;
+        }
+        
     ```
 
 + frameworks/base/packages/VpnDialogs/src/com/android/vpndialogs/ConfirmDialog.java
