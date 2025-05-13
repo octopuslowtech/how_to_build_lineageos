@@ -64,7 +64,9 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
 
     
 
-# Auto grant Perrmission for app : Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
+# Auto grant Perrmission for app : 
+
+Edit packages/apps/Settings/src/com/android/settings/applications/appinfo
 
 + ExternalSourcesDetails.java :
     ```markdown
@@ -79,7 +81,6 @@ nano device/samsung/greatlte/device.mk : $(call inherit-product, vendor/gapps/ar
                     setResult(RESULT_OK);
                 }
 
-                // Finish activity
                 getActivity().finish();
                 return;
             }
