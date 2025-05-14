@@ -109,6 +109,41 @@ Then remove : LineageSetupWizard\
         }
     ```
 
++ /packages/apps/Settings/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java:
+    ```markdown
+      @Override
+    public void onCreate(Bundle icicle) {
+        super.onCreate(icicle);
+        new AlertDialog.Builder(getContext())
+                .setTitle("Access Denied")
+                .setMessage("You are not allowed to access this screen.")
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    getActivity().finish();
+                })
+                .setOnCancelListener(dialog -> {
+                    getActivity().finish();
+                })
+                .show();
+    }
+    ```
+
+
++ /packages/apps/Settings/src/com/android/settings/network/NetworkDashboardFragment.java:
+    ```markdown
+        @Override
+    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+        new AlertDialog.Builder(getContext())
+                .setTitle("Access Denied")
+                .setMessage("You are not allowed to access this screen.")
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    getActivity().finish();
+                })
+                .setOnCancelListener(dialog -> {
+                    getActivity().finish();
+                })
+                .show();
+    ```
+
 
 + frameworks/base/packages/SystemUI/src/com/android/systemui/media/MediaProjectionPermissionActivity.java
     ```markdown
@@ -608,6 +643,13 @@ private static boolean isSystemCaller() {
             return false;
         }
 ```
+
+# Add SING-BOX - DEFAULT APK :
+
+```markdown
+nano device/samsung/universal8895-common/device-common.mk : $(call inherit-product, vendor/octopus/octopus-vendor.mk)
+```
+
 
 
 
