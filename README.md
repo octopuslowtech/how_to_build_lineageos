@@ -213,7 +213,7 @@ Then remove : LineageSetupWizard\
              @Override
         public List<AccessibilityServiceInfo> getInstalledAccessibilityServiceList(int userId) {
         if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
-            mTraceManager.logTrace(TAG + ".getInstalledAccessibilityServiceList",
+            mTraceManager.logTrace(LOG_TAG + ".getInstalledAccessibilityServiceList",
                     FLAGS_ACCESSIBILITY_MANAGER, "userId=" + userId);
         }
 
@@ -270,8 +270,8 @@ Then remove : LineageSetupWizard\
 
     @Override
     public List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType, int userId) {
-        if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
-            mTraceManager.logTrace(TAG + ".getEnabledAccessibilityServiceList",
+         if (mTraceManager.isA11yTracingEnabledForTypes(FLAGS_ACCESSIBILITY_MANAGER)) {
+            mTraceManager.logTrace(LOG_TAG + ".getEnabledAccessibilityServiceList",
                     FLAGS_ACCESSIBILITY_MANAGER,
                     "feedbackType=" + feedbackType + ";userId=" + userId);
         }
