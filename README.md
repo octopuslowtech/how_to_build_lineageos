@@ -10,6 +10,16 @@ repo sync -c -j16 --force-sync --no-clone-bundle --no-tags
 ```
 
 
++ Building 
+
+```markdown
+source build/envsetup.sh && lunch arrow_greatlte-user && m otapackage
+```
+
+
+
+
+
 ## Auto Boot :
 system/core/rootdir/init.rc :
 ```markdown
